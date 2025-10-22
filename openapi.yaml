@@ -1,0 +1,485 @@
+
+openapi: 3.1.0
+info:
+  title: Paw Champ API (Sample)
+  version: 1.0.0
+  description: |
+    Sample OpenAPI spec to test how **ReadMe** renders documentation.
+    - JWT Bearer auth for most endpoints
+    - Basic resource: Users
+    - Payments demo with nested schema
+    - Pagination, error format, and examples included
+  contact:
+    name: API Support
+    email: support@example.com
+servers:
+  - url: https://api.example.com/v1
+    description: Production
+  - url: https://staging-api.example.com/v1
+    description: Staging
+tags:
+  - name: Health
+    description: Service health checks
+  - name: Auth
+    description: Authentication endpoints
+  - name: Users
+    description: Manage users
+  - name: Payments
+    description: Create and view payments
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness/Readiness probe
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              examples:
+                ok:
+                  value: { status: "ok", time: "2025-10-22T12:00:00Z" }
+  /auth/token:
+    post:
+      tags: [Auth]
+      summary: Obtain access token (password or refresh)
+      description: |
+        Exchange user credentials for a JWT access token. Supports grant_type **password** and **refresh_token**.
+      operationId: postAuthToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/PasswordGrantRequest'
+                - $ref: '#/components/schemas/RefreshGrantRequest'
+            examples:
+              password:
+                value:
+                  grant_type: password
+                  username: user@example.com
+                  password: secret123
+              refresh:
+                value:
+                  grant_type: refresh_token
+                  refresh_token: eyJhbGciOi...
+      responses:
+        "200":
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                success:
+                  value:
+                    access_token: eyJhbGciOi...
+                    token_type: Bearer
+                    expires_in: 3600
+                    refresh_token: eyJhbGciOi...
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - $ref: '#/components/parameters/sort'
+      responses:
+        "200":
+          description: A paginated list of users
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+              examples:
+                page1:
+                  value:
+                    data:
+                      - id: "usr_123"
+                        email: alice@example.com
+                        name: Alice
+                        role: user
+                        created_at: "2025-10-01T09:00:00Z"
+                      - id: "usr_124"
+                        email: bob@example.com
+                        name: Bob
+                        role: admin
+                        created_at: "2025-10-02T11:00:00Z"
+                    meta: { page: 1, per_page: 25, total: 2 }
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Users]
+      summary: Create a user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+            examples:
+              create:
+                value:
+                  email: jane@example.com
+                  name: Jane
+                  password: S3curePwd!
+                  role: user
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the new user
+              schema: { type: string, format: uri }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              examples:
+                created:
+                  value:
+                    id: "usr_200"
+                    email: jane@example.com
+                    name: Jane
+                    role: user
+                    created_at: "2025-10-22T13:00:00Z"
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              examples:
+                one:
+                  value:
+                    id: "usr_123"
+                    email: alice@example.com
+                    name: Alice
+                    role: user
+                    created_at: "2025-10-01T09:00:00Z"
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Users]
+      summary: Update user (partial)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+            examples:
+              update:
+                value: { name: "Alice A.", role: "admin" }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Users]
+      summary: Delete user
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /payments:
+    post:
+      tags: [Payments]
+      summary: Create a payment
+      description: Creates a payment intent and returns its details.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+            examples:
+              create:
+                value:
+                  user_id: "usr_200"
+                  amount: { currency: "USD", value_minor: 1299 }
+                  description: "Monthly subscription"
+      responses:
+        "201":
+          description: Payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /payments/{id}:
+    get:
+      tags: [Payments]
+      summary: Get payment by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Payment identifier
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    page:
+      name: page
+      in: query
+      description: Page number (1-based)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    per_page:
+      name: per_page
+      in: query
+      description: Page size
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    sort:
+      name: sort
+      in: query
+      description: Sort expressions (e.g. `created_at:desc,name:asc`)
+      required: false
+      schema:
+        type: string
+    userId:
+      name: id
+      in: path
+      required: true
+      description: User identifier
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            validation:
+              value:
+                code: "bad_request"
+                message: "Validation failed"
+                details:
+                  field: "email"
+                  error: "must be a valid email"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            no_token:
+              value: { code: "unauthorized", message: "Missing or invalid token" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            not_found:
+              value: { code: "not_found", message: "User not found" }
+  schemas:
+    Health:
+      type: object
+      required: [status, time]
+      properties:
+        status: { type: string, enum: [ok] }
+        time: { type: string, format: date-time }
+    PasswordGrantRequest:
+      type: object
+      required: [grant_type, username, password]
+      properties:
+        grant_type:
+          type: string
+          enum: [password]
+        username:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    RefreshGrantRequest:
+      type: object
+      required: [grant_type, refresh_token]
+      properties:
+        grant_type:
+          type: string
+          enum: [refresh_token]
+        refresh_token:
+          type: string
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, description: Seconds until expiry }
+        refresh_token: { type: string, nullable: true }
+    User:
+      type: object
+      required: [id, email, name, role, created_at]
+      properties:
+        id: { type: string, example: "usr_123" }
+        email: { type: string, format: email }
+        name: { type: string }
+        role:
+          type: string
+          enum: [user, admin]
+          default: user
+        created_at: { type: string, format: date-time }
+    UserCreate:
+      type: object
+      required: [email, name, password]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string, minLength: 1 }
+        password: { type: string, format: password, minLength: 8 }
+        role:
+          type: string
+          enum: [user, admin]
+          default: user
+    UserUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email }
+        name: { type: string, minLength: 1 }
+        role:
+          type: string
+          enum: [user, admin]
+    Money:
+      type: object
+      required: [currency, value_minor]
+      properties:
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: USD
+        value_minor:
+          type: integer
+          description: Amount in minor units (e.g. cents)
+          example: 1299
+    Payment:
+      type: object
+      required: [id, user_id, amount, status, created_at]
+      properties:
+        id: { type: string, example: "pay_001" }
+        user_id: { type: string, example: "usr_200" }
+        amount: { $ref: '#/components/schemas/Money' }
+        description: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+          example: pending
+        created_at: { type: string, format: date-time }
+    PaymentCreate:
+      type: object
+      required: [user_id, amount]
+      properties:
+        user_id: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        description: { type: string, nullable: true, maxLength: 200 }
+    PaginationMeta:
+      type: object
+      required: [page, per_page, total]
+      properties:
+        page: { type: integer, minimum: 1 }
+        per_page: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          description: Optional details for debugging or validation errors
+          type: object
+security:
+  - bearerAuth: []
